@@ -2,11 +2,16 @@ import logging
 import os
 import sys
 import time
+from pprint import pprint
+
 import telegram
 
 from functools import wraps
 from telegram.ext import Updater, CommandHandler
 from telegram import ParseMode
+
+import tools
+import plugins
 
 token_path = 'token.txt'
 if len(sys.argv) > 1:
@@ -69,6 +74,12 @@ def error_handler(bot, update, error):
     """
     logging.warning('Update "%s" caused error "%s"' % (update, error))
 
+
+commands = {'stop': stop, 'restart': restart}
+
+commands = tools.merge_dicts(*([commands] +
+                               [getattr(plugins, plugin_name).__commands__ for plugin_name in plugins.__all__]))
+
 if __name__ == "__main__":
     logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
     logger = logging.getLogger(__name__)
@@ -78,8 +89,9 @@ if __name__ == "__main__":
 
     dispatcher.add_error_handler(error_handler)
 
-    dispatcher.add_handler(CommandHandler('restart', restart))
-    dispatcher.add_handler(CommandHandler('stop', stop))
+    for cmd_name, cmd_func in commands.items():
+        dispatcher.add_handler(CommandHandler(cmd_name, cmd_func))
 
     updater.start_polling()
     updater.idle()
+# pass_user_data
