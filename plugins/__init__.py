@@ -16,8 +16,11 @@ __all__ = \
         if os.path.isfile(f) and not f.endswith('__init__.py')
         ]
 
-__all__ += [name
-            for name in os.listdir(os.path.dirname(__file__))
-            if os.path.isdir(os.path.join(os.path.dirname(__file__), name)) and not name.startswith("__")]
+__all__ += \
+    [
+        name
+        for name in os.listdir(os.path.dirname(__file__))
+        if os.path.isdir(os.path.join(os.path.dirname(__file__), name)) and not name.startswith("__")
+    ]
 
 [do_import('plugins.' + name) for name in __all__]
