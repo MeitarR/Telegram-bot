@@ -5,8 +5,6 @@ import glob
 
 def do_import(mud_name):
     globals()[mud_name] = __import__(mud_name)
-    print(mud_name)
-
 
 modules = glob.glob(os.path.dirname(__file__) + "/*.py")
 __all__ = \
