@@ -90,8 +90,7 @@ if __name__ == "__main__":
     dispatcher.add_error_handler(error_handler)
 
     for cmd_name, cmd_func in commands.items():
-        dispatcher.add_handler(CommandHandler(cmd_name, cmd_func))
+        dispatcher.add_handler(CommandHandler(cmd_name, cmd_func, pass_user_data=True, pass_args=True))
 
     updater.start_polling()
     updater.idle()
-# pass_user_data
