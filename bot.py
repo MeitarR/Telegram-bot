@@ -36,13 +36,20 @@ def restricted(func):
 
 
 @restricted
-def restart(bot, update):
+def restart(bot, update, user_data, args):
     """
+    Restarts the bot.
+    (admin only)
+    ***----***
     :param bot: the bot class
     :type bot: telegram.Bot
     :param update: the update message
     :type update: telegram.Update
-    :return: None
+    :param user_data: user's data
+    :type user_data: dict
+    :param args: the args of the command
+    :type args: list
+    :return:
     """
     stop(bot, update)
     bot.send_message(update.message.chat_id, "Bot is restarting...")
@@ -51,16 +58,45 @@ def restart(bot, update):
 
 
 @restricted
-def stop(bot, update):
+def stop(bot, update, user_data, args):
     """
+    Stops the bot.
+    (admins only)
+    ***----***
     :param bot: the bot class
     :type bot: telegram.Bot
     :param update: the update message
     :type update: telegram.Update
-    :return: None
+    :param user_data: user's data
+    :type user_data: dict
+    :param args: the args of the command
+    :type args: list
+    :return:
     """
     bot.send_message(chat_id=update.message.chat_id, text="Nooooooooooooooooooooo!")
     os.kill(os.getpid(), 2)
+
+
+def get_help(bot, update, user_data, args):
+    """
+    Sends a 'help' message
+    ***----***
+    :param bot: the bot class
+    :type bot: telegram.Bot
+    :param update: the update message
+    :type update: telegram.Update
+    :param user_data: user's data
+    :type user_data: dict
+    :param args: the args of the command
+    :type args: list
+    :return:
+    """
+    message = update.message  # type: telegram.Message
+
+    help_msg = ""
+    for cmd_name, cmd_func in commands.items():
+        help_msg += "*/%s* - %s\n" % (cmd_name, cmd_func.__doc__.split("***----***")[0])
+    message.reply_text(help_msg, parse_mode='Markdown')
 
 
 def error_handler(bot, update, error):
@@ -75,7 +111,7 @@ def error_handler(bot, update, error):
     logging.warning('Update "%s" caused error "%s"' % (update, error))
 
 
-commands = {'stop': stop, 'restart': restart}
+commands = {'help': get_help, 'stop': stop, 'restart': restart}
 
 commands = tools.merge_dicts(*([commands] +
                                [getattr(plugins, plugin_name).__commands__ for plugin_name in plugins.__all__]))
