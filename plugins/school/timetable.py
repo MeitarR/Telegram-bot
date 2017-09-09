@@ -2,6 +2,7 @@ import urllib.request
 import lxml.html as lh
 import collections
 import datetime
+import telegram
 
 Lesson = collections.namedtuple('Lesson', 'subject teacher room')
 Hour = collections.namedtuple('Hour', 'number lessons')
@@ -69,11 +70,11 @@ def get_timetable_of_day(day_number):
 
 
 def get_today_timetable():
-    return get_timetable_of_day((datetime.datetime.today().weekday() + 1) % 7)
+    return get_timetable_of_day((datetime.datetime.today().weekday() + 1) % 6)
 
 
 def get_tomorrow_timetable():
-    return get_timetable_of_day((datetime.datetime.today().weekday() + 2) % 7)
+    return get_timetable_of_day((datetime.datetime.today().weekday() + 2) % 6)
 
 
 def to_string(day):
@@ -85,6 +86,32 @@ def to_string(day):
         for lesson in hour.lessons:
             full_msg += lesson.subject + ' עם ' + lesson.teacher + ' (' + str(lesson.room) + ')\n'
     return full_msg
+
+
+def timetable_cmd(bot, update, user_data, args):
+    """
+    sends the timetable for the selected day
+    ***----***
+    :param bot: the bot class
+    :type bot: telegram.Bot
+    :param update: the update message
+    :type update: telegram.Update
+    :param user_data: user's data
+    :type user_data: dict
+    :param args: the args of the command
+    :type args: list
+    :return:
+    """
+    message = update.message  # type: telegram.Message
+    if len(args) == 0:
+        message.reply_text(to_string(get_today_timetable()))
+    elif len(args) == 1:
+        if args[0].isnumeric() and 0 <= int(args[0]) <= 6:
+            message.reply_text(to_string(get_timetable_of_day(int(args[0]))))
+        else:
+            message.reply_text("bad input")
+    else:
+        message.reply_text("bad input")
 
 if __name__ == "__main__":
     aaa = get_updates()
