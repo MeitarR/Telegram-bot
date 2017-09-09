@@ -1,17 +1,23 @@
+import os
 from plugins import *
-from os.path import dirname, basename, isfile
 import glob
 
 
 def do_import(mud_name):
     globals()[mud_name] = __import__(mud_name)
+    print(mud_name)
 
-modules = glob.glob(dirname(__file__) + "/*.py")
+
+modules = glob.glob(os.path.dirname(__file__) + "/*.py")
 __all__ = \
     [
-        basename(f)[:-3]
+        os.path.basename(f)[:-3]
         for f in modules
-        if isfile(f) and not f.endswith('__init__.py')
-    ]
+        if os.path.isfile(f) and not f.endswith('__init__.py')
+        ]
+
+__all__ += [name
+            for name in os.listdir(os.path.dirname(__file__))
+            if os.path.isdir(os.path.join(os.path.dirname(__file__), name)) and not name.startswith("__")]
 
 [do_import('plugins.' + name) for name in __all__]
