@@ -1,7 +1,7 @@
 import telegram
 
 
-def ping_cmd(bot, update, user_data=None):
+def ping_cmd(bot, update, user_data, args):
     """
     answers pong so the user will play ping pong with the bot
 
@@ -11,7 +11,9 @@ def ping_cmd(bot, update, user_data=None):
     :type update: telegram.Update
     :param user_data: user's data
     :type user_data: dict
-    :return: None
+    :param args: the args of the command
+    :type args: list
+    :return:
     """
     message = update.message  # type: telegram.Message
     message.reply_text("pong")
