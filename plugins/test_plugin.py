@@ -3,8 +3,8 @@ import telegram
 
 def ping_cmd(bot, update, user_data, args):
     """
-    answers pong so the user will play ping pong with the bot
-
+    Answers pong. The user can play ping pong with the bot.
+    ***----***
     :param bot: the bot class
     :type bot: telegram.Bot
     :param update: the update message
