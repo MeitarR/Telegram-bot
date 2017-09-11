@@ -111,9 +111,9 @@ def error_handler(bot, update, error):
     logging.warning('Update "%s" caused error "%s"' % (update, error))
 
 
-commands = {'help': get_help, 'stop': stop, 'restart': restart}
+core_commands = {'help': get_help, 'stop': stop, 'restart': restart}
 
-commands = tools.merge_dicts(*([commands] +
+commands = tools.merge_dicts(*([core_commands] +
                                [getattr(plugins, plugin_name).__commands__ for plugin_name in plugins.__all__]))
 
 if __name__ == "__main__":
