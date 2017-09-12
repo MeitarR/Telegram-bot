@@ -11,6 +11,10 @@ Day = collections.namedtuple('Day', 'number name hours')
 
 days_of_week = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"]
 
+teacher_to_filter = ['שוש פייס', 'מאיה מיכאלי', 'איריס תתר', 'פאינה צ`בולסקי',
+                     'אלינה דוברובונסקי', 'דנה אליהו', 'מיטל זרדב',
+                     'צבייה בלומנפלג-גבע', 'אתי אזולאי', 'אבי', 'רחלי דמלין שגיא']
+
 
 def get_updates():
     url = "https://www.webtop.co.il/mobile/superSchool.aspx?institutionCode=440545&classNum=52&view=timetable&platform="
@@ -81,7 +85,9 @@ def to_string(day):
     for hour in day.hours:
         full_msg += "\nשיעור " + str(hour.number) + ":\n"
         for lesson in hour.lessons:
-            full_msg += lesson.subject + ' עם ' + lesson.teacher + ' (' + str(lesson.room) + ')\n'
+            if lesson.teacher in teacher_to_filter:
+                full_msg += lesson.subject + ' (' + str(lesson.room) + ')\n'
+                # full_msg += lesson.subject + ' עם ' + lesson.teacher + ' (' + str(lesson.room) + ')\n'
     return full_msg
 
 
