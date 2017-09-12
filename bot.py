@@ -7,7 +7,7 @@ from pprint import pprint
 import telegram
 
 from functools import wraps
-from telegram.ext import Updater, CommandHandler
+from telegram.ext import Updater, CommandHandler, CallbackQueryHandler
 from telegram import ParseMode
 
 import tools
@@ -32,6 +32,7 @@ def restricted(func):
             print("Unauthorized access denied for {}.".format(user_id))
             return
         return func(bot, update, *args, **kwargs)
+
     return wrapped
 
 
@@ -112,9 +113,17 @@ def error_handler(bot, update, error):
 
 
 core_commands = {'help': get_help, 'stop': stop, 'restart': restart}
+core_callbacks = dict()
 
 commands = tools.merge_dicts(*([core_commands] +
-                               [getattr(plugins, plugin_name).__commands__ for plugin_name in plugins.__all__]))
+                               [getattr(plugins, plugin_name).__commands__
+                                for plugin_name in plugins.__all__
+                                if hasattr(getattr(plugins, plugin_name), '__commands__')]))
+
+callbacks = tools.merge_dicts(*([core_callbacks] +
+                                [getattr(plugins, plugin_name).__callbacks__
+                                 for plugin_name in plugins.__all__
+                                 if hasattr(getattr(plugins, plugin_name), '__callbacks__')]))
 
 if __name__ == "__main__":
     logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -127,6 +136,9 @@ if __name__ == "__main__":
 
     for cmd_name, cmd_func in commands.items():
         dispatcher.add_handler(CommandHandler(cmd_name, cmd_func, pass_user_data=True, pass_args=True))
+
+    for callback_start_str, callback_func in callbacks.items():
+        dispatcher.add_handler(CallbackQueryHandler(callback_func, pattern='^%s .*' % callback_start_str))
 
     updater.start_polling()
     updater.idle()
