@@ -3,6 +3,7 @@ import lxml.html as lh
 import collections
 import datetime
 import telegram
+from telegram import InlineKeyboardMarkup, InlineKeyboardButton
 
 Lesson = collections.namedtuple('Lesson', 'subject teacher room')
 Hour = collections.namedtuple('Hour', 'number lessons')
@@ -69,10 +70,6 @@ def get_timetable_of_day(day_number):
         return None
 
 
-def get_today_timetable():
-    return get_timetable_of_day((datetime.datetime.today().weekday() + 1) % 6)
-
-
 def get_tomorrow_timetable():
     return get_timetable_of_day((datetime.datetime.today().weekday() + 2) % 6)
 
@@ -104,14 +101,44 @@ def timetable_cmd(bot, update, user_data, args):
     """
     message = update.message  # type: telegram.Message
     if len(args) == 0:
-        message.reply_text(to_string(get_today_timetable()))
+        day = (datetime.datetime.today().weekday() + 1) % 6
     elif len(args) == 1:
         if args[0].isnumeric() and 0 <= int(args[0]) <= 6:
-            message.reply_text(to_string(get_timetable_of_day(int(args[0]))))
+            day = int(args[0])
         else:
             message.reply_text("bad input")
+            return
     else:
         message.reply_text("bad input")
+        return
+
+    keyboard = [[InlineKeyboardButton("<<", callback_data='/timetable {}'.format((day - 1) % 6)),
+                 InlineKeyboardButton(">>", callback_data='/timetable {}'.format((day + 1) % 6))]]
+
+    message.reply_text(to_string(get_timetable_of_day(day)), reply_markup=InlineKeyboardMarkup(keyboard))
+
+
+def timetable_callback(bot, update):
+    """
+    callback for the timetable message
+    ***----***
+    :param bot: the bot class
+    :type bot: telegram.Bot
+    :param update: the update message
+    :type update: telegram.Update
+    :return:
+    """
+    query = update.callback_query  # type: telegram.CallbackQuery
+    day = int(str(query.data).split(' ')[1])
+    if 0 <= day <= 6:
+        keyboard = [[InlineKeyboardButton("<<", callback_data='/timetable {}'.format((day - 1) % 6)),
+                     InlineKeyboardButton(">>", callback_data='/timetable {}'.format((day + 1) % 6))]]
+
+        bot.edit_message_text(text=to_string(get_timetable_of_day(day)),
+                              chat_id=query.message.chat_id,
+                              message_id=query.message.message_id,
+                              reply_markup=InlineKeyboardMarkup(keyboard))
+
 
 if __name__ == "__main__":
     aaa = get_updates()
