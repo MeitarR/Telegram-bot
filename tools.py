@@ -1,3 +1,8 @@
+from collections import namedtuple
+
+Command = namedtuple('Command', 'name function args_to_pass')
+
+
 def create_file_if_not_exits(file_name):
     """
     create a file with this name only if it now exits
@@ -25,3 +30,26 @@ def merge_dicts(*dict_args):
     for dictionary in dict_args:
         result.update(dictionary)
     return result
+
+
+def function_registerer():
+    """
+    create a list of functions from all the functions that @ that function
+    """
+    functions_list = []
+
+    def registrar_warp(name, args_to_pass=None):
+        if args_to_pass is None:
+            args_to_pass = dict()
+
+        def registrar(func):
+            functions_list.append(Command(name=name, function=func, args_to_pass=args_to_pass))
+            return func
+
+        return registrar
+
+    registrar_warp.functions_list = functions_list
+    return registrar_warp
+
+register_command = function_registerer()
+register_callback = function_registerer()
