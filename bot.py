@@ -11,8 +11,7 @@ from telegram.ext import Updater, CommandHandler, CallbackQueryHandler
 from telegram import ParseMode
 
 import tools
-import plugins
-
+from plugins import *
 token_path = 'token.txt'
 if len(sys.argv) > 1:
     token_path = sys.argv[1]
@@ -36,8 +35,9 @@ def restricted(func):
     return wrapped
 
 
+@tools.register_command('restart')
 @restricted
-def restart(bot, update, user_data, args):
+def restart(bot, update):
     """
     Restarts the bot.
     (admin only)
@@ -46,10 +46,6 @@ def restart(bot, update, user_data, args):
     :type bot: telegram.Bot
     :param update: the update message
     :type update: telegram.Update
-    :param user_data: user's data
-    :type user_data: dict
-    :param args: the args of the command
-    :type args: list
     :return:
     """
     stop(bot, update)
@@ -58,8 +54,9 @@ def restart(bot, update, user_data, args):
     os.execl(sys.executable, sys.executable, *sys.argv)
 
 
+@tools.register_command('stop')
 @restricted
-def stop(bot, update, user_data, args):
+def stop(bot, update):
     """
     Stops the bot.
     (admins only)
@@ -68,17 +65,14 @@ def stop(bot, update, user_data, args):
     :type bot: telegram.Bot
     :param update: the update message
     :type update: telegram.Update
-    :param user_data: user's data
-    :type user_data: dict
-    :param args: the args of the command
-    :type args: list
     :return:
     """
     bot.send_message(chat_id=update.message.chat_id, text="Nooooooooooooooooooooo!")
     os.kill(os.getpid(), 2)
 
 
-def get_help(bot, update, user_data, args):
+@tools.register_command('help')
+def get_help(bot, update):
     """
     Sends a 'help' message
     ***----***
@@ -86,16 +80,12 @@ def get_help(bot, update, user_data, args):
     :type bot: telegram.Bot
     :param update: the update message
     :type update: telegram.Update
-    :param user_data: user's data
-    :type user_data: dict
-    :param args: the args of the command
-    :type args: list
     :return:
     """
     message = update.message  # type: telegram.Message
 
     help_msg = ""
-    for cmd_name, cmd_func in commands.items():
+    for cmd_name, cmd_func, args in tools.register_command.functions_list:
         help_msg += "*/%s* - %s\n" % (cmd_name, cmd_func.__doc__.split("***----***")[0])
     message.reply_text(help_msg, parse_mode='Markdown')
 
@@ -112,19 +102,6 @@ def error_handler(bot, update, error):
     logging.warning('Update "%s" caused error "%s"' % (update, error))
 
 
-core_commands = {'help': get_help, 'stop': stop, 'restart': restart}
-core_callbacks = dict()
-
-commands = tools.merge_dicts(*([core_commands] +
-                               [getattr(plugins, plugin_name).__commands__
-                                for plugin_name in plugins.__all__
-                                if hasattr(getattr(plugins, plugin_name), '__commands__')]))
-
-callbacks = tools.merge_dicts(*([core_callbacks] +
-                                [getattr(plugins, plugin_name).__callbacks__
-                                 for plugin_name in plugins.__all__
-                                 if hasattr(getattr(plugins, plugin_name), '__callbacks__')]))
-
 if __name__ == "__main__":
     logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
     logger = logging.getLogger(__name__)
@@ -134,11 +111,11 @@ if __name__ == "__main__":
 
     dispatcher.add_error_handler(error_handler)
 
-    for cmd_name, cmd_func in commands.items():
-        dispatcher.add_handler(CommandHandler(cmd_name, cmd_func, pass_user_data=True, pass_args=True))
+    for cmd_name, cmd_func, args in tools.register_command.functions_list:
+        dispatcher.add_handler(CommandHandler(cmd_name, cmd_func, **args))
 
-    for callback_start_str, callback_func in callbacks.items():
-        dispatcher.add_handler(CallbackQueryHandler(callback_func, pattern='^%s .*' % callback_start_str))
+    for callback_start_str, callback_func, args in tools.register_callback.functions_list:
+        dispatcher.add_handler(CallbackQueryHandler(callback_func, pattern='^/%s .*' % callback_start_str, **args))
 
     updater.start_polling()
     updater.idle()
