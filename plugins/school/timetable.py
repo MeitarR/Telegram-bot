@@ -5,6 +5,8 @@ import datetime
 import telegram
 from telegram import InlineKeyboardMarkup, InlineKeyboardButton
 
+import tools
+
 Lesson = collections.namedtuple('Lesson', 'subject teacher room')
 Hour = collections.namedtuple('Hour', 'number lessons')
 Day = collections.namedtuple('Day', 'number name hours')
@@ -91,7 +93,8 @@ def to_string(day):
     return full_msg
 
 
-def timetable_cmd(bot, update, user_data, args):
+@tools.register_command('timetable', {'pass_args': True})
+def timetable_cmd(bot, update, args):
     """
     sends the timetable for the selected day
     ***----***
@@ -99,8 +102,6 @@ def timetable_cmd(bot, update, user_data, args):
     :type bot: telegram.Bot
     :param update: the update message
     :type update: telegram.Update
-    :param user_data: user's data
-    :type user_data: dict
     :param args: the args of the command
     :type args: list
     :return:
@@ -124,6 +125,7 @@ def timetable_cmd(bot, update, user_data, args):
     message.reply_text(to_string(get_timetable_of_day(day)), reply_markup=InlineKeyboardMarkup(keyboard))
 
 
+@tools.register_callback('timetable')
 def timetable_callback(bot, update):
     """
     callback for the timetable message
