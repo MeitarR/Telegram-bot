@@ -12,6 +12,7 @@ from telegram import ParseMode
 
 import tools
 from plugins import *
+
 token_path = 'token.txt'
 if len(sys.argv) > 1:
     token_path = sys.argv[1]
@@ -85,8 +86,23 @@ def get_help(bot, update):
     message = update.message  # type: telegram.Message
 
     help_msg = ""
-    for cmd_name, cmd_func, args in tools.register_command.functions_list:
-        help_msg += "/%s - %s\n" % (cmd_name, cmd_func.__doc__.split("***----***")[0])
+    conversations_list = []
+
+    list(map(lambda x:
+             [
+                 conversations_list.append(
+                     tools.Command(name=entry.command[0], function=entry.callback, args_to_pass=None))
+                 for entry in x
+                 if isinstance(entry, CommandHandler)
+             ],
+             [conv.entry_points for conv in tools.conversation_list]))
+
+    for command_name, command_func, command_args in tools.register_command.functions_list + conversations_list:
+        if hasattr(command_func, '__doc__') and isinstance(command_func.__doc__, str):
+            doc = command_func.__doc__.split("***----***")[0]
+        else:
+            doc = ""
+        help_msg += "/%s - %s\n" % (command_name, doc)
     message.reply_text(help_msg, parse_mode='Markdown')
 
 
