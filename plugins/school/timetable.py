@@ -76,10 +76,6 @@ def get_timetable_of_day(day_number):
         return None
 
 
-def get_tomorrow_timetable():
-    return get_timetable_of_day((datetime.datetime.today().weekday() + 2) % 6)
-
-
 def to_string(day):
     if day is None:
         return "היום לא קיים במערכת..."
@@ -146,8 +142,3 @@ def timetable_callback(bot, update):
                               chat_id=query.message.chat_id,
                               message_id=query.message.message_id,
                               reply_markup=InlineKeyboardMarkup(keyboard))
-
-
-if __name__ == "__main__":
-    aaa = get_updates()
-    print(to_string(get_tomorrow_timetable()))
