@@ -117,5 +117,8 @@ if __name__ == "__main__":
     for callback_start_str, callback_func, args in tools.register_callback.functions_list:
         dispatcher.add_handler(CallbackQueryHandler(callback_func, pattern='^/%s .*' % callback_start_str, **args))
 
+    for conversation in tools.conversation_list:
+        dispatcher.add_handler(conversation)
+
     updater.start_polling()
     updater.idle()
