@@ -2,6 +2,8 @@ from collections import namedtuple
 
 Command = namedtuple('Command', 'name function args_to_pass')
 
+conversation_list = []
+
 
 def create_file_if_not_exits(file_name):
     """
@@ -50,6 +52,16 @@ def function_registerer():
 
     registrar_warp.functions_list = functions_list
     return registrar_warp
+
+
+def add_conversations(*conversation_handlers):
+    """
+    adds the conversation handlers to the list
+    :param conversation_handlers: the handlers to add
+    :return: None
+    """
+    for conversation_handler in conversation_handlers:
+        conversation_list.append(conversation_handler)
 
 register_command = function_registerer()
 register_callback = function_registerer()
