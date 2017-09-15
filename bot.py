@@ -86,7 +86,7 @@ def get_help(bot, update):
 
     help_msg = ""
     for cmd_name, cmd_func, args in tools.register_command.functions_list:
-        help_msg += "*/%s* - %s\n" % (cmd_name, cmd_func.__doc__.split("***----***")[0])
+        help_msg += "/%s - %s\n" % (cmd_name, cmd_func.__doc__.split("***----***")[0])
     message.reply_text(help_msg, parse_mode='Markdown')
 
 
