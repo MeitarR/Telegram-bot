@@ -19,13 +19,36 @@ REMIND_CANCEL_MSG = '\n(Remember, if you regret, just use /cancel to cancel)'
 START_MSG = 'What should I remind you?\n'
 CONF_TEXT_MSG = 'Are you sure that what you want me to remind you is: "{0}"?\n'
 GET_DATE_MSG = 'tell me when\n'
-GET_C_DATE_MSG = 'Tell me exactly when \nwith a date as d.m.yyyy (exa: 1.1.1970)\nor with a day name (exa: sunday)'
+GET_C_DATE_MSG = 'Tell me exactly when \nwith a date as d.m.yyyy (exa: 1.1.2000)\nor with a day name (exa: sunday)'
 GET_HOUR_MSG = ''
 CONF_TIME_MSG = ''
 GET_REP_MSG = ''
 GET_C_REP_MSG = ''
 CONF_REP_MSG = ''
 END_MSG = ''
+
+DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+WEEK_LENGTH = 7
+DATE_FORMAT = '%-d.%-m.%Y'
+
+
+def get_future_weekday_date(name):
+    """
+    :param name: the name of the day
+    :type name: str
+    :return: Datetime
+    """
+    name = name.lower()
+    if name in DAYS:
+        day_num = DAYS.index(name)
+        today = datetime.datetime.today()
+        if today.weekday() <= day_num:
+            days = day_num - today.weekday()
+        else:
+            days = WEEK_LENGTH - (today.weekday() - day_num)
+        return today + datetime.timedelta(days=days)
+    else:
+        return None
 
 
 def remind(bot, update, user_data):
@@ -109,9 +132,9 @@ def select_date_type(bot, update, user_data):
     data = user_data['remind']  # type: dict
 
     if message.text == "Today":
-        data['date'] = datetime.datetime.today().strftime('%-d.%-m.%Y')
+        data['date'] = datetime.datetime.today().strftime(DATE_FORMAT)
     elif message.text == "Tomorrow":
-        data['date'] = (datetime.datetime.today() + datetime.timedelta(days=1)).strftime('%-d.%-m.%Y')
+        data['date'] = (datetime.datetime.today() + datetime.timedelta(days=1)).strftime(DATE_FORMAT)
     else:
         message.reply_text(GET_C_DATE_MSG,
                            reply_markup=ForceReply(selective=True))
@@ -134,6 +157,7 @@ def handle_custom_date(bot, update, user_data):
     message = update.message  # type: telegram.Message
     data = user_data['remind']  # type: dict
     data['date'] = message.text
+    message.reply_text("the user_data: " + str(user_data))
 
 
 def handle_day_name(bot, update, user_data):
@@ -149,7 +173,8 @@ def handle_day_name(bot, update, user_data):
     """
     message = update.message  # type: telegram.Message
     data = user_data['remind']  # type: dict
-    # TODO: get date by weekday
+    data['date'] = get_future_weekday_date(message.text).strftime(DATE_FORMAT)
+    message.reply_text("the user_data: " + str(user_data))
 
 
 def cancel(bot, update):
