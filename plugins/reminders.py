@@ -14,7 +14,18 @@ from telegram.ext import RegexHandler
 import tools
 
 MESSAGE, CONFIRM_MESSAGE, DATE, CUSTOM_DATE, HOUR, CONFIRM_TIME, REPEAT, CUSTOM_DAYS, CONFIRM_REPEAT = range(9)
-CANCEL_MESSAGE = '(Remember, if you regret, just use /cancel to cancel)'
+
+REMIND_CANCEL_MSG = '\n(Remember, if you regret, just use /cancel to cancel)'
+START_MSG = 'What should I remind you?\n'
+CONF_TEXT_MSG = 'Are you sure that what you want me to remind you is: "{0}"?\n'
+GET_DATE_MSG = 'tell me when\n'
+GET_C_DATE_MSG = 'Tell me exactly when \nwith a date as d.m.yyyy (exa: 1.1.1970)\nor with a day name (exa: sunday)'
+GET_HOUR_MSG = ''
+CONF_TIME_MSG = ''
+GET_REP_MSG = ''
+GET_C_REP_MSG = ''
+CONF_REP_MSG = ''
+END_MSG = ''
 
 
 def remind(bot, update, user_data):
@@ -31,7 +42,7 @@ def remind(bot, update, user_data):
     """
     user_data['remind'] = dict()
     update.message.reply_text(
-        'What should I remind you?\n' + CANCEL_MESSAGE,
+        START_MSG + REMIND_CANCEL_MSG,
         reply_markup=ForceReply(selective=True))
 
     return MESSAGE
@@ -54,7 +65,7 @@ def get_message(bot, update, user_data):
     message = update.message  # type: telegram.Message
     data = user_data['remind']  # type: dict
     data['message'] = message.text
-    message.reply_text('Are you sure that what you want me to remind you is: "%s"?' % (message.text,),
+    message.reply_text(CONF_TEXT_MSG.format(message.text),
                        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, selective=True))
     return CONFIRM_MESSAGE
 
@@ -74,13 +85,11 @@ def is_message_good(bot, update, user_data):
     if message.text == "Yes!":
         reply_keyboard = tools.build_menu(['Today', 'Tomorrow', 'Further'], 2)
 
-        message.reply_text('Good!\n\n'
-                           'Now tell me when\n' + CANCEL_MESSAGE,
+        message.reply_text('Good!\n\nNow ' + GET_DATE_MSG + REMIND_CANCEL_MSG,
                            reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, selective=True))
         return DATE
     else:
-        message.reply_text('Well...\nlets fix it.\n\n'
-                           'What should I remind you?\n' + CANCEL_MESSAGE,
+        message.reply_text('Well...\nlets fix it.\n\n' + START_MSG + REMIND_CANCEL_MSG,
                            reply_markup=ForceReply(selective=True))
         return MESSAGE
 
@@ -101,12 +110,10 @@ def select_date_type(bot, update, user_data):
 
     if message.text == "Today":
         data['date'] = datetime.datetime.today().strftime('%-d.%-m.%Y')
-    elif message.text == "Today":
+    elif message.text == "Tomorrow":
         data['date'] = (datetime.datetime.today() + datetime.timedelta(days=1)).strftime('%-d.%-m.%Y')
     else:
-        message.reply_text('Tell me exactly when \n'
-                           'with a date as d.m.yyyy (exa: 1.1.1970)\n'
-                           'or with a day name (exa: sunday)',
+        message.reply_text(GET_C_DATE_MSG,
                            reply_markup=ForceReply(selective=True))
         return CUSTOM_DATE
     message.reply_text("the user_data: " + str(user_data))
