@@ -11,10 +11,12 @@ from telegram.ext import Filters
 from telegram.ext import MessageHandler
 from telegram.ext import RegexHandler
 
+from collections import namedtuple
+
 import tools
 
 MESSAGE, CONFIRM_MESSAGE, DATE, CUSTOM_DATE, HOUR, CONFIRM_TIME, REPEAT, CUSTOM_DAYS, CONFIRM_REPEAT = range(9)
-EVERY_DAY, EVERY_MONTH, CUSTOM = range(3)
+EVERY_DAY, EVERY_MONTH, CUSTOM, NO_REP = range(4)
 
 REMIND_CANCEL_MSG = '\n(Remember, if you regret, just use /cancel to discard)\n'
 START_MSG = 'What do you need me to remind you of?\n'
@@ -33,6 +35,9 @@ END_MSG = 'Excellent! Your reminder has been set! \n'
 DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 WEEK_LENGTH = 7
 DATE_FORMAT = '%-d.%-m.%Y'
+
+Repeat = namedtuple('Repeat', 'type days')
+Reminder = namedtuple('Reminder', 'text time repeat')
 
 
 def get_future_weekday_date(name):
@@ -257,19 +262,18 @@ def get_repeat_type(bot, update, user_data):
     reply_keyboard = [['Yes!', 'No!']]
 
     if message.text == 'Every day':
-        data['repeat'] = EVERY_DAY
+        data['repeat'] = Repeat(type=EVERY_DAY, days=None)
     elif message.text == 'Every month':
-        data['repeat'] = EVERY_MONTH
+        data['repeat'] = Repeat(type=EVERY_MONTH, days=None)
     elif message.text == 'Custom':
         reply_keyboard = tools.build_menu(DAYS, 3)
 
-        data['repeat'] = CUSTOM
         data['custom_repeat'] = []
         message.reply_text(GET_C_REP_MSG.format('None'),
                            reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, selective=True))
         return CUSTOM_DAYS
     else:
-        data['repeat'] = None
+        data['repeat'] = Repeat(type=NO_REP, days=None)
         message.reply_text(CONF_REP_MSG.format("with no repeat") + REMIND_CANCEL_MSG,
                            reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, selective=True))
         return CONFIRM_REPEAT
@@ -295,6 +299,7 @@ def handle_custom_days(bot, update, user_data):
     chosen_days = data['custom_repeat']  # type: list
 
     if message.text == 'Done':
+        data['repeat'] = Repeat(type=CUSTOM, days=chosen_days)
         reply_keyboard = [['Yes!', 'No!']]
         message.reply_text(CONF_REP_MSG.format('every ' + ', '.join([DAYS[i] for i in chosen_days])),
                            reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, selective=True))
@@ -311,7 +316,7 @@ def handle_custom_days(bot, update, user_data):
         return CUSTOM_DAYS
 
 
-def is_repeat_good(bot, update, user_data):
+def is_repeat_good(bot, update, user_data, job_queue):
     """
     ***----***
     :param bot: the bot class
@@ -320,10 +325,20 @@ def is_repeat_good(bot, update, user_data):
     :type update: telegram.Update
     :param user_data: the user's data
     :type user_data: dict
+    :param job_queue: the job queue
+    :type job_queue: telegram.ext.JobQueue
     :return:
     """
     message = update.message  # type: telegram.Message
+    data = user_data['remind']  # type: dict
+
     if message.text == "Yes!":
+        date, hour = [int(n) for n in str(data['date']).split('.')], [int(n) for n in str(data['hour']).split(':')]
+        the_time = datetime.datetime(day=date[0], month=date[1], year=date[2], hour=hour[0], minute=hour[1])
+        reminder = Reminder(text=data['message'], time=the_time, repeat=data['repeat'])
+
+        set_reminder(reminder, job_queue)
+
         message.reply_text(END_MSG)
         message.reply_text("user_data:\n" + str(user_data))
         return ConversationHandler.END
@@ -351,6 +366,19 @@ def cancel(bot, update):
     return ConversationHandler.END
 
 
+def set_reminder(reminder, job_queue):
+    """
+    sets the reminder
+
+    :param reminder: the reminder with all the data
+    :type reminder: Reminder
+    :param job_queue: the job queue
+    :type job_queue: telegram.ext.JobQueue
+    :return:
+    """
+    pass
+
+
 tools.add_conversations(ConversationHandler(
     entry_points=[CommandHandler('remind', remind, pass_user_data=True)],
 
@@ -376,7 +404,7 @@ tools.add_conversations(ConversationHandler(
                                    '[Ss]aturday|Done)$',
                                    handle_custom_days, pass_user_data=True)],
 
-        CONFIRM_REPEAT: [RegexHandler('^(Yes!|No!)$', is_repeat_good, pass_user_data=True)],
+        CONFIRM_REPEAT: [RegexHandler('^(Yes!|No!)$', is_repeat_good, pass_user_data=True, pass_job_queue=True)],
 
     },
 
