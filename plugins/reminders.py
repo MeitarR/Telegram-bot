@@ -1,6 +1,8 @@
 import datetime
-
+import hashlib
+import re
 import telegram
+
 from telegram import ForceReply
 from telegram import ReplyKeyboardMarkup
 from telegram import ReplyKeyboardRemove
@@ -18,11 +20,18 @@ from pprint import pprint
 
 import tools
 
-MESSAGE, CONFIRM_MESSAGE, DATE, CUSTOM_DATE, HOUR, CONFIRM_TIME, REPEAT, CUSTOM_DAYS, CONFIRM_REPEAT = range(9)
+CHOOSE, LIST, CHOOSE_ACTION, CONFIRM_DELETE, MESSAGE, CONFIRM_MESSAGE, DATE, \
+    CUSTOM_DATE, HOUR, CONFIRM_TIME, REPEAT, CUSTOM_DAYS, CONFIRM_REPEAT = range(13)
 EVERY_DAY, CUSTOM, NO_REP = range(3)
 
 REMIND_CANCEL_MSG = '\n(Remember, if you regret, just use /cancel to discard)\n'
-START_MSG = 'What do you need me to remind you of?\n'
+
+START_MSG = 'What can i help you with reminders?\n'
+NEW_MSG = 'What do you need me to remind you of?\n'
+LIST_MSG = 'Choose the reminder you wish to modify.\n'
+LIST_EMPTY_MSG = 'There are no reminders in this chat.\n'
+REMINDER_CHOSE_MSG = 'Reminder on {0}:\n"{1}"\nAnd it {2}.\n\nWhat would you like to do with it?\n'
+CONF_DELETE_MSG = 'Are you sure you want to delete this reminder?\n'
 CONF_TEXT_MSG = 'Are you sure that you want to be reminded about "{0}"?\n'
 GET_DATE_MSG = 'Should i remind you of that today or tomorrow?\n'
 GET_C_DATE_MSG = 'Tell me on what day do you need to be reminded please, \n' \
@@ -34,6 +43,7 @@ GET_REP_MSG = 'Do you need to be reminded of that repeatedly? For instance, ever
 GET_C_REP_MSG = 'Choose the days you want it to repeat.\n\nYou already chose those days:\n{0}\n'
 CONF_REP_MSG = 'All right, you want me to remind you {0}. Correct?\n'
 END_MSG = 'Excellent! Your reminder has been set! \n'
+CANCEL_MSG = 'Well, okay, Then why\'d you ask for it...'
 
 DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 WEEK_LENGTH = 7
@@ -64,7 +74,7 @@ def get_future_weekday_date(name):
 
 def remind(bot, update, user_data):
     """
-    sets a remainder
+    show the menu of the remind system
     ***----***
     :param bot: the bot class
     :type bot: telegram.Bot
@@ -74,12 +84,133 @@ def remind(bot, update, user_data):
     :type user_data: dict
     :return:
     """
-    user_data['remind'] = dict()
+    reply_keyboard = [['Create a new reminder'], ['Modify exiting reminders']]
+
     update.message.reply_text(
         START_MSG + REMIND_CANCEL_MSG,
-        reply_markup=ForceReply(selective=True))
+        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, selective=True))
 
-    return MESSAGE
+    return CHOOSE
+
+
+def choose_what_to_do(bot, update, user_data, job_queue):
+    """
+    ***----***
+    :param bot: the bot class
+    :type bot: telegram.Bot
+    :param update: the update message
+    :type update: telegram.Update
+    :param user_data: the user's data
+    :type user_data: dict
+    :param job_queue: the job queue
+    :type job_queue: JobQueue
+    :return:
+    """
+    message = update.message  # type: telegram.Message
+
+    if message.text == 'Create a new reminder':
+        user_data['remind'] = dict()
+        update.message.reply_text(NEW_MSG + REMIND_CANCEL_MSG, reply_markup=ForceReply(selective=True))
+        return MESSAGE
+    elif message.text == 'Modify exiting reminders':
+        jobs_text = []
+        for job in job_queue.jobs():  # type: Job
+            if job.enabled and job.context['chat_id'] == message.chat_id:
+                jobs_text.append('{} - {}\n"{}"\nid({})'.format(
+                    job.context['time'], job.context['repeat'], job.context['text'], job.name))
+        if len(jobs_text) > 0:
+            reply_keyboard = tools.build_menu(jobs_text, 1)
+            message.reply_text(LIST_MSG + REMIND_CANCEL_MSG,
+                               reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, selective=True))
+            return LIST
+        else:
+            message.reply_text(LIST_EMPTY_MSG)
+            return ConversationHandler.END
+
+
+def handle_reminder_choose(bot, update, user_data, job_queue):
+    """
+    ***----***
+    :param bot: the bot class
+    :type bot: telegram.Bot
+    :param update: the update message
+    :type update: telegram.Update
+    :param user_data: the user's data
+    :type user_data: dict
+    :param job_queue: the job queue
+    :type job_queue: JobQueue
+    :return:
+    """
+    message = update.message  # type: telegram.Message
+    name = str(re.search('.*id\((b\'.+\')\)', message.text).group(1))
+    data = user_data['remind']  # type: dict
+
+    for job in job_queue.jobs():  # type: Job
+        if job.enabled and job.context['chat_id'] == message.chat_id and job.name == name:
+            reply_keyboard = tools.build_menu(['delete'], 2)
+            message.reply_text(REMINDER_CHOSE_MSG.format(
+                job.context['time'], job.context['text'], job.context['repeat']) + REMIND_CANCEL_MSG,
+                               reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, selective=True))
+            data['chosen_job'] = job
+            return CHOOSE_ACTION
+    else:
+        jobs_text = []
+        for job in job_queue.jobs():  # type: Job
+            if job.enabled and job.context['chat_id'] == message.chat_id:
+                jobs_text.append('{} - {}\n"{}"\nid({})'.format(
+                    job.context['time'], job.context['repeat'], job.context['text'], job.name))
+        if len(jobs_text) > 0:
+            reply_keyboard = tools.build_menu(jobs_text, 1)
+            message.reply_text('Invalid ID\n' + LIST_MSG + REMIND_CANCEL_MSG,
+                               reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, selective=True))
+            return LIST
+        else:
+            message.reply_text(LIST_EMPTY_MSG)
+            return ConversationHandler.END
+
+
+def conf_delete(bot, update, user_data):
+    """
+    ***----***
+    :param bot: the bot class
+    :type bot: telegram.Bot
+    :param update: the update message
+    :type update: telegram.Update
+    :param user_data: the user's data
+    :type user_data: dict
+    :return:
+    """
+    message = update.message  # type: telegram.Message
+    reply_keyboard = [['Yes!', 'No!']]
+
+    message.reply_text(CONF_DELETE_MSG,
+                       reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, selective=True))
+    return CONFIRM_DELETE
+
+
+def delete(bot, update, user_data, job_queue):
+    """
+    ***----***
+    :param bot: the bot class
+    :type bot: telegram.Bot
+    :param update: the update message
+    :type update: telegram.Update
+    :param user_data: the user's data
+    :type user_data: dict
+    :param job_queue: the job queue
+    :type job_queue: JobQueue
+    :return:
+    """
+    message = update.message  # type: telegram.Message
+    data = user_data['remind']  # type: dict
+
+    if message.text == 'Yes!':
+        data['chosen_job'].enabled = False
+        message.reply_text("Reminder removed.")
+        return ConversationHandler.END
+    else:
+        message.reply_text("OK")
+        return ConversationHandler.END
 
 
 def get_message(bot, update, user_data):
@@ -123,7 +254,7 @@ def is_message_good(bot, update, user_data):
                            reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, selective=True))
         return DATE
     else:
-        message.reply_text('Well...\nlet\'s fix it.\n\n' + START_MSG + REMIND_CANCEL_MSG,
+        message.reply_text('Well...\nLet\'s fix it.\n\n' + NEW_MSG + REMIND_CANCEL_MSG,
                            reply_markup=ForceReply(selective=True))
         return MESSAGE
 
@@ -243,7 +374,7 @@ def is_time_good(bot, update, user_data):
     else:
         reply_keyboard = tools.build_menu(['Today', 'Tomorrow', 'No, a different date'], 2)
 
-        message.reply_text('Well...\nlet\'s fix it.\n\n' + GET_DATE_MSG + REMIND_CANCEL_MSG,
+        message.reply_text('Well...\nLet\'s fix it.\n\n' + GET_DATE_MSG + REMIND_CANCEL_MSG,
                            reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, selective=True))
         return DATE
 
@@ -360,7 +491,7 @@ def cancel(bot, update):
     :type update: telegram.Update
     :return:
     """
-    update.message.reply_text('Well, ok then why you ask for it...',
+    update.message.reply_text(CANCEL_MSG,
                               reply_markup=ReplyKeyboardRemove())
 
     return ConversationHandler.END
@@ -376,19 +507,35 @@ def set_reminder(reminder, job_queue):
     :type job_queue: JobQueue
     :return:
     """
-    context = {'chat_id': reminder.chat_id, 'text': reminder.text}
+    context = {'chat_id': reminder.chat_id,
+               'text': reminder.text,
+               'time': reminder.time.strftime(DATE_FORMAT + ' - %H:%M')}
+    the_hash = str(hashlib.md5((str(context) + str(datetime.datetime.now())).encode()).digest())
     if reminder.repeat.type == EVERY_DAY:
-        job_queue.run_daily(do_reminder, reminder.time, context=context)
+        context['repeat'] = "repeats every day"
+        job_queue.run_daily(do_reminder, reminder.time, context=context, name=the_hash)
     elif reminder.repeat.type == CUSTOM:
-        job_queue.run_daily(do_reminder, reminder.time, days=tuple(reminder.repeat.days), context=context)
+        context['repeat'] = "repeats every " + ', '.join([DAYS[i] for i in reminder.repeat.days])
+        job_queue.run_daily(do_reminder, reminder.time, days=tuple(reminder.repeat.days), context=context,
+                            name=the_hash)
     else:
-        job_queue.run_once(do_reminder, reminder.time, context=context)
-
+        context['repeat'] = "does not repeat"
+        job_queue.run_once(do_reminder, reminder.time, context=context, name=the_hash)
 
 tools.add_conversations(ConversationHandler(
     entry_points=[CommandHandler('remind', remind, pass_user_data=True)],
 
     states={
+        CHOOSE: [RegexHandler('^(Create a new reminder|Modify exiting reminders)$',
+                              choose_what_to_do, pass_user_data=True, pass_job_queue=True)],
+
+        LIST: [MessageHandler(Filters.text,
+                              handle_reminder_choose, pass_user_data=True, pass_job_queue=True)],
+
+        CHOOSE_ACTION: [RegexHandler('^delete$', conf_delete, pass_user_data=True)],
+
+        CONFIRM_DELETE: [RegexHandler('^(Yes!|No!)$', delete, pass_user_data=True, pass_job_queue=True)],
+
         MESSAGE: [MessageHandler(Filters.text, get_message, pass_user_data=True)],
 
         CONFIRM_MESSAGE: [RegexHandler('^(Yes!|No!)$', is_message_good, pass_user_data=True)],
@@ -427,5 +574,4 @@ def do_reminder(bot, job):
     :type job: Job
     :return:
     """
-    print(str(job.context))
     bot.send_message(job.context['chat_id'], job.context['text'])
