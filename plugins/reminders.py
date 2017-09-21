@@ -235,7 +235,7 @@ def is_time_good(bot, update, user_data):
     """
     message = update.message  # type: telegram.Message
     if message.text == "Yes!":
-        reply_keyboard = tools.build_menu(['Every day', 'Custom', 'Nope'], 3)
+        reply_keyboard = tools.build_menu(['Every day', 'Custom', 'Nope'], 2)
 
         message.reply_text('Good!\n\n' + GET_REP_MSG + REMIND_CANCEL_MSG,
                            reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, selective=True))
@@ -343,7 +343,7 @@ def is_repeat_good(bot, update, user_data, job_queue):
         message.reply_text(END_MSG)
         return ConversationHandler.END
     else:
-        reply_keyboard = tools.build_menu(['Every day', 'Custom', 'Nope'], 3)
+        reply_keyboard = tools.build_menu(['Every day', 'Custom', 'Nope'], 2)
 
         message.reply_text('Ok, let\'s change that.\n\n' + GET_REP_MSG + REMIND_CANCEL_MSG,
                            reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, selective=True))
@@ -380,7 +380,6 @@ def set_reminder(reminder, job_queue):
     if reminder.repeat.type == EVERY_DAY:
         job_queue.run_daily(do_reminder, reminder.time, context=context)
     elif reminder.repeat.type == CUSTOM:
-        print(reminder.repeat.days)
         job_queue.run_daily(do_reminder, reminder.time, days=tuple(reminder.repeat.days), context=context)
     else:
         job_queue.run_once(do_reminder, reminder.time, context=context)
