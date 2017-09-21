@@ -1,4 +1,3 @@
-import pprint
 import datetime
 
 import telegram
@@ -10,13 +9,17 @@ from telegram.ext import ConversationHandler
 from telegram.ext import Filters
 from telegram.ext import MessageHandler
 from telegram.ext import RegexHandler
+from telegram.ext import JobQueue
+from telegram.ext import Job
 
 from collections import namedtuple
+
+from pprint import pprint
 
 import tools
 
 MESSAGE, CONFIRM_MESSAGE, DATE, CUSTOM_DATE, HOUR, CONFIRM_TIME, REPEAT, CUSTOM_DAYS, CONFIRM_REPEAT = range(9)
-EVERY_DAY, EVERY_MONTH, CUSTOM, NO_REP = range(4)
+EVERY_DAY, CUSTOM, NO_REP = range(3)
 
 REMIND_CANCEL_MSG = '\n(Remember, if you regret, just use /cancel to discard)\n'
 START_MSG = 'What do you need me to remind you of?\n'
@@ -28,7 +31,7 @@ GET_C_DATE_MSG = 'Tell me on what day do you need to be reminded please, \n' \
 GET_HOUR_MSG = 'What time do you need me to remind you of that? Please write in this format - HH:MM\n'
 CONF_TIME_MSG = 'So let\'s see if i got it right. You want me to remind you on {0} at {1}. Am I correct?\n'
 GET_REP_MSG = 'Do you need to be reminded of that repeatedly? For instance, every week?\n'
-GET_C_REP_MSG = 'Choose the days you want it to repeat.\n\nYou already choosed those days:\n{0}\n'
+GET_C_REP_MSG = 'Choose the days you want it to repeat.\n\nYou already chose those days:\n{0}\n'
 CONF_REP_MSG = 'All right, you want me to remind you {0}. Correct?\n'
 END_MSG = 'Excellent! Your reminder has been set! \n'
 
@@ -37,7 +40,7 @@ WEEK_LENGTH = 7
 DATE_FORMAT = '%-d.%-m.%Y'
 
 Repeat = namedtuple('Repeat', 'type days')
-Reminder = namedtuple('Reminder', 'text time repeat')
+Reminder = namedtuple('Reminder', 'text time repeat chat_id')
 
 
 def get_future_weekday_date(name):
@@ -232,9 +235,9 @@ def is_time_good(bot, update, user_data):
     """
     message = update.message  # type: telegram.Message
     if message.text == "Yes!":
-        reply_keyboard = tools.build_menu(['Every day', 'Every month', 'Custom', 'Nope'], 3)
+        reply_keyboard = tools.build_menu(['Every day', 'Custom', 'Nope'], 3)
 
-        message.reply_text('Good!\n\nNow ' + GET_REP_MSG + REMIND_CANCEL_MSG,
+        message.reply_text('Good!\n\n' + GET_REP_MSG + REMIND_CANCEL_MSG,
                            reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, selective=True))
         return REPEAT
     else:
@@ -263,8 +266,6 @@ def get_repeat_type(bot, update, user_data):
 
     if message.text == 'Every day':
         data['repeat'] = Repeat(type=EVERY_DAY, days=None)
-    elif message.text == 'Every month':
-        data['repeat'] = Repeat(type=EVERY_MONTH, days=None)
     elif message.text == 'Custom':
         reply_keyboard = tools.build_menu(DAYS, 3)
 
@@ -326,7 +327,7 @@ def is_repeat_good(bot, update, user_data, job_queue):
     :param user_data: the user's data
     :type user_data: dict
     :param job_queue: the job queue
-    :type job_queue: telegram.ext.JobQueue
+    :type job_queue: JobQueue
     :return:
     """
     message = update.message  # type: telegram.Message
@@ -335,7 +336,7 @@ def is_repeat_good(bot, update, user_data, job_queue):
     if message.text == "Yes!":
         date, hour = [int(n) for n in str(data['date']).split('.')], [int(n) for n in str(data['hour']).split(':')]
         the_time = datetime.datetime(day=date[0], month=date[1], year=date[2], hour=hour[0], minute=hour[1])
-        reminder = Reminder(text=data['message'], time=the_time, repeat=data['repeat'])
+        reminder = Reminder(text=data['message'], time=the_time, repeat=data['repeat'], chat_id=message.chat_id)
 
         set_reminder(reminder, job_queue)
 
@@ -343,9 +344,9 @@ def is_repeat_good(bot, update, user_data, job_queue):
         message.reply_text("user_data:\n" + str(user_data))
         return ConversationHandler.END
     else:
-        reply_keyboard = tools.build_menu(['Every day', 'Every month', 'Custom', 'Nope'], 3)
+        reply_keyboard = tools.build_menu(['Every day', 'Custom', 'Nope'], 3)
 
-        message.reply_text('Good!\n\nNow ' + GET_REP_MSG + REMIND_CANCEL_MSG,
+        message.reply_text('Ok, let\'s change that.\n\n' + GET_REP_MSG + REMIND_CANCEL_MSG,
                            reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, selective=True))
         return REPEAT
 
@@ -373,10 +374,17 @@ def set_reminder(reminder, job_queue):
     :param reminder: the reminder with all the data
     :type reminder: Reminder
     :param job_queue: the job queue
-    :type job_queue: telegram.ext.JobQueue
+    :type job_queue: JobQueue
     :return:
     """
-    pass
+    context = {'chat_id': reminder.chat_id, 'text': reminder.text}
+    if reminder.repeat.type == EVERY_DAY:
+        job_queue.run_daily(do_reminder, reminder.time, context=context)
+    elif reminder.repeat.type == CUSTOM:
+        print(reminder.repeat.days)
+        job_queue.run_daily(do_reminder, reminder.time, days=tuple(reminder.repeat.days), context=context)
+    else:
+        job_queue.run_once(do_reminder, reminder.time, context=context)
 
 
 tools.add_conversations(ConversationHandler(
@@ -398,7 +406,7 @@ tools.add_conversations(ConversationHandler(
 
         CONFIRM_TIME: [RegexHandler('^(Yes!|No!)$', is_time_good, pass_user_data=True)],
 
-        REPEAT: [RegexHandler('^(Every day|Every month|Custom|Nope)$', get_repeat_type, pass_user_data=True)],
+        REPEAT: [RegexHandler('^(Every day|Custom|Nope)$', get_repeat_type, pass_user_data=True)],
 
         CUSTOM_DAYS: [RegexHandler('^([Ss]unday|[Mm]onday|[Tt]uesday|[Ww]ednesday|[Tt]hursday|[Ff]riday|'
                                    '[Ss]aturday|Done)$',
@@ -410,3 +418,16 @@ tools.add_conversations(ConversationHandler(
 
     fallbacks=[CommandHandler('cancel', cancel)]
 ))
+
+
+def do_reminder(bot, job):
+    """
+
+    :param bot: the bot class
+    :type bot: telegram.Bot
+    :param job: the job object
+    :type job: Job
+    :return:
+    """
+    print(str(job.context))
+    bot.send_message(job.context['chat_id'], job.context['text'])
