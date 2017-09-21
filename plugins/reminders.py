@@ -341,7 +341,6 @@ def is_repeat_good(bot, update, user_data, job_queue):
         set_reminder(reminder, job_queue)
 
         message.reply_text(END_MSG)
-        message.reply_text("user_data:\n" + str(user_data))
         return ConversationHandler.END
     else:
         reply_keyboard = tools.build_menu(['Every day', 'Custom', 'Nope'], 3)
