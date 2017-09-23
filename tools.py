@@ -30,7 +30,7 @@ def create_file_if_not_exits(file_name):
         pass
 
 
-def create_json_file_if_not_exits(file_name):
+def create_json_obj_file_if_not_exits(file_name):
     """
     create a file with this name only if it now exits and write to in empty json object
 
@@ -42,6 +42,22 @@ def create_json_file_if_not_exits(file_name):
         open(file_name, "x").close()
         with open(file_name, 'w', encoding='UTF-8') as f:
             json.dump({}, f)
+    except FileExistsError:
+        pass
+
+
+def create_json_list_file_if_not_exits(file_name):
+    """
+    create a file with this name only if it now exits and write to in empty list
+
+    :param file_name: the name of the file
+    :type file_name: str
+    :return: None
+    """
+    try:
+        open(file_name, "x").close()
+        with open(file_name, 'w', encoding='UTF-8') as f:
+            json.dump([], f)
     except FileExistsError:
         pass
 
