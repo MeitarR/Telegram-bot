@@ -40,7 +40,7 @@ def create_json_file_if_not_exits(file_name):
     """
     try:
         open(file_name, "x").close()
-        with open(file_name, 'w') as f:
+        with open(file_name, 'w', encoding='UTF-8') as f:
             json.dump({}, f)
     except FileExistsError:
         pass
