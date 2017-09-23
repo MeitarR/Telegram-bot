@@ -136,5 +136,8 @@ if __name__ == "__main__":
     for conversation in tools.conversation_list:
         dispatcher.add_handler(conversation)
 
+    for func in tools.register_need_job_queue.functions_list:
+        func(dispatcher.job_queue)
+
     updater.start_polling()
     updater.idle()
