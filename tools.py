@@ -1,3 +1,5 @@
+import json
+
 from collections import namedtuple
 
 Command = namedtuple('Command', 'name function args_to_pass')
@@ -24,6 +26,22 @@ def create_file_if_not_exits(file_name):
     """
     try:
         open(file_name, "x").close()
+    except FileExistsError:
+        pass
+
+
+def create_json_file_if_not_exits(file_name):
+    """
+    create a file with this name only if it now exits and write to in empty json object
+
+    :param file_name: the name of the file
+    :type file_name: str
+    :return: None
+    """
+    try:
+        open(file_name, "x").close()
+        with open(file_name, 'w') as f:
+            json.dump({}, f)
     except FileExistsError:
         pass
 
