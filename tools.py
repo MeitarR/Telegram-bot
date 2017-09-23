@@ -97,6 +97,19 @@ def function_registerer():
     return registrar_warp
 
 
+def func_reg_need_job_queue():
+    """
+    create a list of functions from all the functions that @ that function
+    """
+    functions_list = []
+
+    def registrar(func):
+        functions_list.append(func)
+        return func
+    registrar.functions_list = functions_list
+    return registrar
+
+
 def add_conversations(*conversation_handlers):
     """
     adds the conversation handlers to the list
@@ -108,3 +121,4 @@ def add_conversations(*conversation_handlers):
 
 register_command = function_registerer()
 register_callback = function_registerer()
+register_need_job_queue = func_reg_need_job_queue()
