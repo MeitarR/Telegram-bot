@@ -1,6 +1,6 @@
-import datetime
 import hashlib
 import re
+import json
 import telegram
 
 from telegram import ForceReply
@@ -15,6 +15,7 @@ from telegram.ext import JobQueue
 from telegram.ext import Job
 
 from collections import namedtuple
+from datetime import datetime, timedelta
 
 from pprint import pprint
 
@@ -45,12 +46,18 @@ CONF_REP_MSG = 'All right, you want me to remind you {0}. Correct?\n'
 END_MSG = 'Excellent! Your reminder has been set! \n'
 CANCEL_MSG = 'Well, okay, Then why\'d you ask for it...'
 
+TO_REMIND_MSG = 'I was told to remind you of this:\n\n{0}'
+
 DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 WEEK_LENGTH = 7
 DATE_FORMAT = '%-d.%-m.%Y'
 
+FILE_NAME = 'reminders.json'
+
 Repeat = namedtuple('Repeat', 'type days')
 Reminder = namedtuple('Reminder', 'text time repeat chat_id')
+
+tools.create_json_list_file_if_not_exits(FILE_NAME)
 
 
 def get_future_weekday_date(name):
@@ -62,12 +69,12 @@ def get_future_weekday_date(name):
     name = name.lower()
     if name in DAYS:
         day_num = DAYS.index(name)
-        today = datetime.datetime.today()
+        today = datetime.today()
         if today.weekday() <= day_num:
             days = day_num - today.weekday()
         else:
             days = WEEK_LENGTH - (today.weekday() - day_num)
-        return today + datetime.timedelta(days=days)
+        return today + timedelta(days=days)
     else:
         return None
 
@@ -108,8 +115,9 @@ def choose_what_to_do(bot, update, user_data, job_queue):
     """
     message = update.message  # type: telegram.Message
 
+    user_data['remind'] = dict()
+
     if message.text == 'Create a new reminder':
-        user_data['remind'] = dict()
         update.message.reply_text(NEW_MSG + REMIND_CANCEL_MSG, reply_markup=ForceReply(selective=True))
         return MESSAGE
     elif message.text == 'Modify exiting reminders':
@@ -274,9 +282,9 @@ def select_date_type(bot, update, user_data):
     data = user_data['remind']  # type: dict
 
     if message.text == "Today":
-        data['date'] = datetime.datetime.today().strftime(DATE_FORMAT)
+        data['date'] = datetime.today().strftime(DATE_FORMAT)
     elif message.text == "Tomorrow":
-        data['date'] = (datetime.datetime.today() + datetime.timedelta(days=1)).strftime(DATE_FORMAT)
+        data['date'] = (datetime.today() + timedelta(days=1)).strftime(DATE_FORMAT)
     else:
         message.reply_text(GET_C_DATE_MSG + REMIND_CANCEL_MSG,
                            reply_markup=ForceReply(selective=True))
@@ -337,11 +345,11 @@ def get_hour(bot, update, user_data):
 
     hour = str(message.text)
 
-    if data['date'] == datetime.datetime.today().strftime(DATE_FORMAT):
+    if data['date'] == datetime.today().strftime(DATE_FORMAT):
         spited_hour = hour.split(':')
-        if int(spited_hour[0]) < datetime.datetime.now().hour or \
-                (int(spited_hour[0]) == datetime.datetime.now().hour and
-                 int(spited_hour[1]) <= datetime.datetime.now().minute):
+        if int(spited_hour[0]) < datetime.now().hour or \
+                (int(spited_hour[0]) == datetime.now().hour and
+                         int(spited_hour[1]) <= datetime.now().minute):
             message.reply_text("That hour already passed...\nFix it.\n\n" + GET_HOUR_MSG)
             return HOUR
 
@@ -466,7 +474,7 @@ def is_repeat_good(bot, update, user_data, job_queue):
 
     if message.text == "Yes!":
         date, hour = [int(n) for n in str(data['date']).split('.')], [int(n) for n in str(data['hour']).split(':')]
-        the_time = datetime.datetime(day=date[0], month=date[1], year=date[2], hour=hour[0], minute=hour[1])
+        the_time = datetime(day=date[0], month=date[1], year=date[2], hour=hour[0], minute=hour[1])
         reminder = Reminder(text=data['message'], time=the_time, repeat=data['repeat'], chat_id=message.chat_id)
 
         set_reminder(reminder, job_queue)
@@ -497,7 +505,53 @@ def cancel(bot, update):
     return ConversationHandler.END
 
 
-def set_reminder(reminder, job_queue):
+def get_reminders_from_file():
+    """
+    returns the json object from the file
+
+    :return:
+    """
+    with open(FILE_NAME, encoding='UTF-8') as f:
+        data = json.load(f, object_hook=from_json)
+    return data
+
+
+def write_reminder(reminder):
+    """
+    write the reminder to the file
+
+    :param reminder: the reminder with all the data
+    :type reminder: Reminder
+    :return:
+    """
+    the_obj = get_reminders_from_file()
+    to_add = reminder._asdict()
+    to_add['repeat'] = to_add['repeat']._asdict()
+    the_obj.append(to_add)
+    with open(FILE_NAME, 'w', encoding='UTF-8') as f:
+        json.dump(the_obj, f, default=to_json, indent=2, ensure_ascii=False)
+
+
+@tools.register_need_job_queue
+def load_reminders(job_queue):
+    """
+    loads the reminders from the file to the job queue
+
+    :param job_queue: the job queue
+    :type job_queue: JobQueue
+    :return:
+    """
+    refresh_saved_reminds()
+    the_reminders = get_reminders_from_file()
+
+    for a_remind in the_reminders:
+        set_reminder(Reminder(text=a_remind['text'],
+                              time=a_remind['time'],
+                              repeat=Repeat(type=a_remind['repeat']['type'], days=a_remind['repeat']['days']),
+                              chat_id=a_remind['chat_id']), job_queue, write_to_file=False)
+
+
+def set_reminder(reminder, job_queue, write_to_file=True):
     """
     sets the reminder
 
@@ -505,12 +559,16 @@ def set_reminder(reminder, job_queue):
     :type reminder: Reminder
     :param job_queue: the job queue
     :type job_queue: JobQueue
+    :param write_to_file: if it should write it to the file
+    :type write_to_file: bool
     :return:
     """
     context = {'chat_id': reminder.chat_id,
                'text': reminder.text,
                'time': reminder.time.strftime(DATE_FORMAT + ' - %H:%M')}
-    the_hash = str(hashlib.md5((str(context) + str(datetime.datetime.now())).encode()).digest())
+    the_hash = str(hashlib.md5((str(context) + str(datetime.now())).encode()).digest())
+    if write_to_file:
+        write_reminder(reminder)
     if reminder.repeat.type == EVERY_DAY:
         context['repeat'] = "repeats every day"
         job_queue.run_daily(do_reminder, reminder.time, context=context, name=the_hash)
@@ -521,6 +579,7 @@ def set_reminder(reminder, job_queue):
     else:
         context['repeat'] = "does not repeat"
         job_queue.run_once(do_reminder, reminder.time, context=context, name=the_hash)
+
 
 tools.add_conversations(ConversationHandler(
     entry_points=[CommandHandler('remind', remind, pass_user_data=True)],
@@ -574,4 +633,28 @@ def do_reminder(bot, job):
     :type job: Job
     :return:
     """
-    bot.send_message(job.context['chat_id'], job.context['text'])
+    bot.send_message(job.context['chat_id'], TO_REMIND_MSG.format(job.context['text']))
+    refresh_saved_reminds()
+
+
+def refresh_saved_reminds():
+    the_reminders = get_reminders_from_file()
+    for a_remind in the_reminders:
+        if datetime.now() >= a_remind['time']:
+            the_reminders.remove(a_remind)
+    with open(FILE_NAME, 'w', encoding='UTF-8') as f:
+        json.dump(the_reminders, f, default=to_json, indent=2, ensure_ascii=False)
+
+
+def to_json(py_obj):
+    if isinstance(py_obj, datetime):
+        return {'__class__': 'datetime',
+                '__value__': py_obj.timestamp()}
+    raise TypeError(repr(py_obj) + ' is not JSON serializable')
+
+
+def from_json(json_obj):
+    if '__class__' in json_obj:
+        if json_obj['__class__'] == 'datetime':
+            return datetime.fromtimestamp(json_obj['__value__'])
+    return json_obj
