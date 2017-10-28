@@ -2,6 +2,7 @@ from pprint import pprint
 
 import youtube_dl
 import telegram
+import threading
 import re
 import os
 
@@ -9,14 +10,13 @@ from telegram.ext import CommandHandler
 from telegram.ext import ConversationHandler
 
 from collections import namedtuple
+from os.path import basename, splitext
 
 import tools
 
 DIR_NAME = 'youtube_mp3'
 
 YoutubeID = namedtuple('YoutubeID', 'video list')
-
-files_name = dict()
 
 if not os.path.exists(DIR_NAME):
     os.makedirs(DIR_NAME)
@@ -124,7 +124,7 @@ def youtube(bot, update, user_data, args):
         message.reply_text("that's a conversation")
     elif len(args) == 1:
         yt_id = get_youtube_id(args[0])
-        Downloader(get_url(yt_id), bot, message.chat_id).do_your_thing()
+        threading.Thread(target=Downloader(get_url(yt_id), bot, message.chat_id).download).start()
     else:
         message.reply_text("its a search cmd")
 
@@ -153,20 +153,41 @@ tools.add_conversations(ConversationHandler(
 ))
 
 
+class MyLogger(object):
+    def __init__(self, downloader, bot=None, chat_id=None):
+        self.name = None
+        self.downloader = downloader
+        self.bot = bot
+        self.chat_id = chat_id
+
+    def debug(self, msg):
+        if msg.startswith('[download] Destination: '):
+            msg = msg.replace('[download] Destination: ', '')
+            self.downloader.send_message("Started downloading {}".format(splitext(basename(msg))[0]))
+        elif msg.startswith('[ffmpeg] Destination: '):
+            self.name = msg.replace('[ffmpeg] Destination: ', '')
+        elif msg.startswith('Deleting original file'):
+            self.downloader.upload_file(self.name)
+
+    def warning(self, msg):
+        pass
+
+    def error(self, msg):
+        pass
+
+
 class Downloader(object):
     def __init__(self, url, bot=None, chat_id=None):
         self.url = url
         self.chat_id = chat_id
         self.bot = bot
-        with youtube_dl.YoutubeDL({'quiet': True}) as ydl:
-            self.vid_data = ydl.extract_info(self.url, download=False)
-
+        self.vid_data = None
         self.ydl_opts = {
             'format': 'bestaudio/best',
             'outtmpl': DIR_NAME + '/%(title)s.%(ext)s',
             'restrictfilenames': True,
             'quiet': True,
-            'progress_hooks': [self.gen_hook(self.vid_data['id'], bot, chat_id)],
+            'logger': MyLogger(self),
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
@@ -174,37 +195,26 @@ class Downloader(object):
             }],
         }
 
-    @staticmethod
-    def gen_hook(vid, bot=None, chat_id=None):
-        def _hook(data):
-            global files_name
-            if data['status'] == 'finished':
-                filename = data['filename']
-                file_tuple = os.path.split(os.path.abspath(filename))
-                spliced_f_name = filename.split('.')
-                spliced_f_name[-1] = 'mp3'
-                files_name[vid] = '.'.join(spliced_f_name)
-                if bot is None or chat_id is None:
-                    print("Done downloading {}\nNow converting!".format('.'.join(file_tuple[1].split('.')[:-1])))
-                else:
-                    bot.send_message(chat_id,
-                                     "Done downloading {}\n"
-                                     "Now converting!".format('.'.join(file_tuple[1].split('.')[:-1])))
-        return _hook
+        self.update_info()
+
+    def update_info(self):
+        with youtube_dl.YoutubeDL({'quiet': True}) as ydl:
+            self.vid_data = ydl.extract_info(self.url, download=False)
 
     def download(self):
         with youtube_dl.YoutubeDL(self.ydl_opts) as ydl:
-            ydl.extract_info(self.url)
-            global files_name
-            return files_name[self.vid_data['id']]
+            ydl.download([self.url])
 
     def upload_file(self, filename):
         if self.bot is None or self.chat_id is None:
-            raise ValueError("bot or chat_id is None")
-        self.bot.send_audio(self.chat_id, open(filename, 'rb'), timeout=5000)
+            print("bot or chat_id is None so no file sent")
+        else:
+            self.bot.send_chat_action(self.chat_id, telegram.ChatAction.UPLOAD_AUDIO)
+            self.bot.send_audio(self.chat_id, open(filename, 'rb'), timeout=5000)
+            os.remove(filename)
 
-    def do_your_thing(self):
-        self.upload_file(self.download())
-
-if __name__ == "__main__":
-    pass
+    def send_message(self, message):
+        if self.bot is None or self.chat_id is None:
+            print("bot or chat_id is None so i print it: '{}'".format(message))
+        else:
+            self.bot.send_message(self.chat_id, message)
