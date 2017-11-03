@@ -124,7 +124,11 @@ def youtube(bot, update, user_data, args):
         message.reply_text("that's a conversation")
     elif len(args) == 1:
         yt_id = get_youtube_id(args[0])
-        threading.Thread(target=Downloader(get_url(yt_id), bot, message.chat_id).download).start()
+
+        if yt_id:
+            threading.Thread(target=Downloader(get_url(yt_id), bot, message.chat_id).download).start()
+        else:
+            message.reply_text("its a search cmd")
     else:
         message.reply_text("its a search cmd")
 
