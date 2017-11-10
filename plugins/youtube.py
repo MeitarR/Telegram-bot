@@ -12,11 +12,16 @@ from telegram.ext import ConversationHandler
 from collections import namedtuple
 from os.path import basename, splitext
 
+from telegram.ext import Filters
+from telegram.ext import MessageHandler
+
 import tools
 
 DIR_NAME = 'youtube_mp3'
 
 YoutubeID = namedtuple('YoutubeID', 'video list')
+
+GET_URL = 0
 
 if not os.path.exists(DIR_NAME):
     os.makedirs(DIR_NAME)
@@ -104,7 +109,7 @@ def get_url(youtube_id, force_playlist=False):
         return None
 
 
-def youtube(bot, update, user_data, args):
+def youtube(bot, update, args):
     """
     download songs with a link or with a name
     ***----***
@@ -112,8 +117,6 @@ def youtube(bot, update, user_data, args):
     :type bot: telegram.Bot
     :param update: the update message
     :type update: telegram.Update
-    :param user_data: the user's data
-    :type user_data: dict
     :param args: the args from the user
     :type args: list
     :return:
@@ -121,7 +124,8 @@ def youtube(bot, update, user_data, args):
     message = update.message  # type: telegram.Message
 
     if len(args) == 0:
-        message.reply_text("that's a conversation")
+        message.reply_text("Please send me the URL for the youtube video you want me to download for you.")
+        return GET_URL
     elif len(args) == 1:
         yt_id = get_youtube_id(args[0])
 
@@ -135,25 +139,31 @@ def youtube(bot, update, user_data, args):
     return ConversationHandler.END
 
 
-def cancel(bot, update):
+def get_url_from_user(bot, update):
     """
-    cancel the conversation
-    ***----***
     :param bot: the bot class
     :type bot: telegram.Bot
     :param update: the update message
     :type update: telegram.Update
     :return:
     """
-    update.message.reply_text("bey")
+    message = update.message  # type: telegram.Message
 
+    yt_id = get_youtube_id(message.text)
+
+    if yt_id:
+        threading.Thread(target=Downloader(get_url(yt_id), bot, message.chat_id).download).start()
+    else:
+        message.reply_text("Sorry...\nI cant search (yet)" + "\n(/youtube to try again)")
     return ConversationHandler.END
 
 
 tools.add_conversations(ConversationHandler(
-    entry_points=[CommandHandler('youtube', youtube, pass_user_data=True, pass_args=True)],
-    states={},
-    fallbacks=[CommandHandler('cancel', cancel)]
+    entry_points=[CommandHandler('youtube', youtube, pass_args=True)],
+    states={
+        GET_URL: [MessageHandler(Filters.text, get_url_from_user)],
+    },
+    fallbacks=[]
 ))
 
 
