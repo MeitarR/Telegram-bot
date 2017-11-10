@@ -128,9 +128,9 @@ def youtube(bot, update, user_data, args):
         if yt_id:
             threading.Thread(target=Downloader(get_url(yt_id), bot, message.chat_id).download).start()
         else:
-            message.reply_text("its a search cmd")
+            message.reply_text("Sorry...\nI cant search (yet)")
     else:
-        message.reply_text("its a search cmd")
+        message.reply_text("Sorry...\nI cant search (yet)")
 
     return ConversationHandler.END
 
