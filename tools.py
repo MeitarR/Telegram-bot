@@ -119,6 +119,7 @@ def add_conversations(*conversation_handlers):
     for conversation_handler in conversation_handlers:
         conversation_list.append(conversation_handler)
 
+
 register_command = function_registerer()
 register_callback = function_registerer()
 register_need_job_queue = func_reg_need_job_queue()
