@@ -7,6 +7,7 @@ import telegram
 # import tools
 
 TimetableChange = collections.namedtuple('TimetableChange', 'title data')
+SchoolNews = collections.namedtuple('SchoolNews', 'data')
 Update = collections.namedtuple('Update', 'timetable_changes school_news')
 
 RTL_FIX = 'fix_rtl.css'
@@ -30,17 +31,15 @@ def get_updates():
                           ' AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36'
         }
     )
-    f = urllib.request.urlopen(req)
-    content = f.read()
+    site = urllib.request.urlopen(req)
+    content = site.read()
 
     root = lh.fromstring(content).xpath("//tr[@id='headerRow']")[0]
-    # TODO: write it when I get the info
-    # superSchoolContent_3710 (check if can use this only for timetable_changes)
 
     timetable_changes_list, school_news_list = [], []
 
     timetable_changes, school_news = root
-    timetable_changes, school_news = timetable_changes[0][0], school_news
+    timetable_changes, school_news = timetable_changes[0][0], school_news[0][0]
 
     for timetable_change in timetable_changes:
         title = timetable_change.xpath('h1')
@@ -50,6 +49,9 @@ def get_updates():
             title = ""
 
         timetable_changes_list.append(TimetableChange(title, lh.tostring(timetable_change).decode('UTF-8')))
+
+    for school_update in school_news:
+        school_news_list.append(SchoolNews(lh.tostring(school_update).decode('UTF-8')))
 
     return Update(timetable_changes_list, school_news_list)
 
@@ -82,10 +84,8 @@ def generate_image(update):
     :return: image location
     """
     the_code = ''
-    for timetable_change in update.timetable_changes:
-        the_code += timetable_change.data + '\n'
-    for school_update in update.school_news:  # TODO: write it when I get the info
-        pass
+    for any_update in update.timetable_changes + update.school_news:
+        the_code += any_update.data + ' <br> <div style="border-bottom: dotted;"></div> <br>'
 
     imgkit.from_string(the_code, 'out.jpg', options=img_kit_options, css=RTL_FIX)
 
