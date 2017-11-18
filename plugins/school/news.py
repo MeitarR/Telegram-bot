@@ -1,20 +1,30 @@
-import urllib.request
+from datetime import timedelta
 import lxml.html as lh
+import urllib.request
 import collections
-import imgkit
 import telegram
+import imgkit
+import json
+import os
 
-# import tools
+import tools
 
 TimetableChange = collections.namedtuple('TimetableChange', 'title data')
 SchoolNews = collections.namedtuple('SchoolNews', 'data')
 Update = collections.namedtuple('Update', 'timetable_changes school_news')
 
-RTL_FIX = 'fix_rtl.css'
+DIR = os.path.dirname(__file__) + '/'
+REGISTERED_FILE = DIR + 'registered'
+CACHE_FILE = DIR + 'cache'
+IMG_LOC = DIR + 'out.jpg'
+RTL_FIX = DIR + 'fix_rtl.css'
 img_kit_options = {
     'encoding': "UTF-8",
     'quiet': ''
 }
+
+tools.create_json_list_file_if_not_exits(REGISTERED_FILE)
+tools.create_json_list_file_if_not_exits(CACHE_FILE)
 
 with open(RTL_FIX, 'w') as f:
     f.write("*{direction: rtl;}\n")
@@ -39,7 +49,14 @@ def get_updates():
     timetable_changes_list, school_news_list = [], []
 
     timetable_changes, school_news = root
-    timetable_changes, school_news = timetable_changes[0][0], school_news[0][0]
+    try:
+        timetable_changes = timetable_changes[0][0]
+    except IndexError:
+        pass
+    try:
+        school_news = school_news[0][0]
+    except IndexError:
+        pass
 
     for timetable_change in timetable_changes:
         title = timetable_change.xpath('h1')
@@ -76,6 +93,21 @@ def filter_updates_timetable(update, filters=None):
     return Update(timetable_changes, update.school_news)
 
 
+def get_update_if_changed(filters=None):
+    updates = filter_updates_timetable(get_updates(), filters=filters)
+    with open(CACHE_FILE, 'r') as temp_file:
+        cached = json.load(temp_file)
+    if cached != update_to_list(updates):
+        with open(CACHE_FILE, 'w') as temp_file:
+            json.dump(updates, temp_file)
+        if update_to_list(updates) == [[], [["<div>&#160;</div>"]]]:
+            return None
+        else:
+            return updates
+    else:
+        return None
+
+
 def generate_image(update):
     """
 
@@ -83,18 +115,40 @@ def generate_image(update):
     :type update: Update
     :return: image location
     """
+    if update is None or update_to_list(update) == [[], [["<div>&#160;</div>"]]]:
+        return None
+
     the_code = ''
     for any_update in update.timetable_changes + update.school_news:
         the_code += any_update.data + ' <br> <div style="border-bottom: dotted;"></div> <br>'
 
-    imgkit.from_string(the_code, 'out.jpg', options=img_kit_options, css=RTL_FIX)
+    imgkit.from_string(the_code, IMG_LOC, options=img_kit_options, css=RTL_FIX)
+    return IMG_LOC
 
 
-# not finished yet
-# @tools.register_command('updates')
-def timetable_cmd(bot, update):
+def update_to_list(update):
+    return [[list(a) for a in update.timetable_changes], [list(a) for a in update.school_news]]
+
+
+@tools.register_command('getschupdates')
+def get_school_updates(bot, update):
     """
-    sends the timetable for the selected day
+    sends updated news from school
+    ***----***
+    :param bot: the bot class
+    :type bot: telegram.Bot
+    :param update: the update message
+    :type update: telegram.Update
+    :return:
+    """
+    message = update.message  # type: telegram.Message
+    message.reply_photo(open(generate_image(filter_updates_timetable(get_updates(), filters=['יב', 'יב7'])), 'rb'))
+
+
+@tools.register_command('regschnews')
+def register_to_school_updates(bot, update):
+    """
+    register this chat to get update from school
     ***----***
     :param bot: the bot class
     :type bot: telegram.Bot
@@ -104,4 +158,32 @@ def timetable_cmd(bot, update):
     """
     message = update.message  # type: telegram.Message
 
-    message.reply_text("good!")
+    with open(REGISTERED_FILE, 'r') as temp_file:
+        registers_list = set(json.load(temp_file))
+    registers_list.add(message.chat_id)
+    with open(REGISTERED_FILE, 'w') as temp_file:
+        json.dump(list(registers_list), temp_file)
+    message.reply_text('Done!')
+
+
+def sending_job(bot, job):
+    """
+
+    :param bot: the bot class
+    :type bot: telegram.Bot
+    :param job: the job object
+    :type job: Job
+    :return:
+    """
+    updates = get_update_if_changed(filters=['יב', 'יב7'])
+    if updates is not None:
+        with open(REGISTERED_FILE, 'r') as temp_file:
+            registers_list = json.load(temp_file)
+
+        for chat_id in registers_list:
+            bot.send_photo(chat_id, open(generate_image(updates), 'rb'))
+
+
+@tools.register_init
+def init(updater):
+    updater.dispatcher.job_queue.run_repeating(callback=sending_job, interval=timedelta(minutes=30), first=0)
