@@ -17,7 +17,8 @@ from telegram.ext import MessageHandler
 
 import tools
 
-DIR_NAME = 'youtube_mp3'
+DIR = os.path.dirname(__file__) + '/'
+DIR_NAME = DIR + 'youtube_mp3'
 
 YoutubeID = namedtuple('YoutubeID', 'video list')
 

@@ -142,7 +142,11 @@ def get_school_updates(bot, update):
     :return:
     """
     message = update.message  # type: telegram.Message
-    message.reply_photo(open(generate_image(filter_updates_timetable(get_updates(), filters=['יב', 'יב7'])), 'rb'))
+    path = generate_image(filter_updates_timetable(get_updates(), filters=['יב', 'יב7']))
+    if path is not None:
+        message.reply_photo(open(path, 'rb'))
+    else:
+        message.reply_text("Sorry... There are no news!")
 
 
 @tools.register_command('regschnews')

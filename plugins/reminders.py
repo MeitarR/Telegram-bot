@@ -1,4 +1,5 @@
 import hashlib
+import os
 import re
 import json
 import telegram
@@ -16,8 +17,6 @@ from telegram.ext import Job
 
 from collections import namedtuple
 from datetime import datetime, timedelta
-
-from pprint import pprint
 
 import tools
 
@@ -52,7 +51,8 @@ DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sun
 WEEK_LENGTH = 7
 DATE_FORMAT = '%-d.%-m.%Y'
 
-FILE_NAME = 'reminders.json'
+DIR = os.path.dirname(__file__) + '/'
+FILE_NAME = DIR + 'reminders.json'
 
 Repeat = namedtuple('Repeat', 'type days')
 Reminder = namedtuple('Reminder', 'text time repeat chat_id')
@@ -532,15 +532,8 @@ def write_reminder(reminder):
         json.dump(the_obj, f, default=to_json, indent=2, ensure_ascii=False)
 
 
-@tools.register_need_job_queue
-def load_reminders(job_queue):
-    """
-    loads the reminders from the file to the job queue
-
-    :param job_queue: the job queue
-    :type job_queue: JobQueue
-    :return:
-    """
+@tools.register_init
+def init(updater):
     refresh_saved_reminds()
     the_reminders = get_reminders_from_file()
 
@@ -548,7 +541,7 @@ def load_reminders(job_queue):
         set_reminder(Reminder(text=a_remind['text'],
                               time=a_remind['time'],
                               repeat=Repeat(type=a_remind['repeat']['type'], days=a_remind['repeat']['days']),
-                              chat_id=a_remind['chat_id']), job_queue, write_to_file=False)
+                              chat_id=a_remind['chat_id']), updater.dispatcher.job_queue, write_to_file=False)
 
 
 def set_reminder(reminder, job_queue, write_to_file=True):
