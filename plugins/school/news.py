@@ -133,7 +133,7 @@ def update_to_list(update):
 @tools.register_command('getschupdates')
 def get_school_updates(bot, update):
     """
-    sends updated news from school
+    Sends updated news from school
     ***----***
     :param bot: the bot class
     :type bot: telegram.Bot
@@ -152,7 +152,7 @@ def get_school_updates(bot, update):
 @tools.register_command('regschnews')
 def register_to_school_updates(bot, update):
     """
-    register this chat to get update from school
+    Register this chat to get update from school
     ***----***
     :param bot: the bot class
     :type bot: telegram.Bot
