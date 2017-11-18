@@ -127,6 +127,9 @@ if __name__ == "__main__":
 
     dispatcher.add_error_handler(error_handler)
 
+    for func in tools.register_init.functions_list:
+        func(updater)
+
     for cmd_name, cmd_func, args in tools.register_command.functions_list:
         dispatcher.add_handler(CommandHandler(cmd_name, cmd_func, **args))
 
