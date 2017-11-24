@@ -21,7 +21,8 @@ IMG_LOC = DIR + 'out.jpg'
 RTL_FIX = DIR + 'fix_rtl.css'
 img_kit_options = {
     'encoding': "UTF-8",
-    'quiet': ''
+    'quiet': '',
+    'xvfb': ''
 }
 
 tools.create_json_list_file_if_not_exits(REGISTERED_FILE)
