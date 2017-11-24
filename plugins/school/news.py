@@ -5,6 +5,7 @@ import collections
 import telegram
 import imgkit
 import json
+import re
 import os
 
 import tools
@@ -88,7 +89,7 @@ def filter_updates_timetable(update, filters=None):
         return update
 
     for timetable_change in update.timetable_changes:
-        if any([a for a in timetable_change.title.split() if a in filters]):
+        if any([a for a in re.split('[;,\*\-\'`]', timetable_change.title) if a in filters]):
             timetable_changes.append(timetable_change)
     return Update(timetable_changes, update.school_news)
 
